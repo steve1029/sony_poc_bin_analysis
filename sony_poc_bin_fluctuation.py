@@ -68,26 +68,36 @@ class BinToDepth:
 
         areas = self._read_area(srt, end)
 
-        allframe = np.array(areas)
-        allframe_avg = np.mean(allframe)
-        allframe_var = np.var(allframe, ddof=1)
-        allframe_std = np.std(allframe, ddof=1)
+        # af denotes all frames.
+        af = np.array(areas)
+        af_avg = np.mean(af)
+        af_var = np.var(af, ddof=1)
+        af_std = np.std(af, ddof=1)
+        af_med = np.median(af)
 
-        mins = []
-        maxs = []
-        avgs = []
-        mfes = []
+        af_cnt = np.bincount(af.flat)
+        af_mfe = np.argmax(af_cnt) # most frequent element.
+
+        af_data = [af_avg, af_var, af_std, af_med, af_mfe, af_cnt]
+
+        # pf denotes per frame.
+        pf_mins = []
+        pf_maxs = []
+        pf_avgs = []
+        pf_mfes = []
 
         for frame in areas:
 
             mfe = np.argmax(np.bincount(frame.flat)) # most frequent element.
 
-            mins.append(np.min(frame))
-            maxs.append(np.max(frame))
-            avgs.append(np.mean(frame))
-            mfes.append(mfe)
+            pf_mins.append(np.min(frame))
+            pf_maxs.append(np.max(frame))
+            pf_avgs.append(np.mean(frame))
+            pf_mfes.append(mfe)
+        
+        pf_data = [pf_mins, pf_maxs, pf_avgs, pf_mfes]
 
-        return mins, maxs, avgs, mfes
+        return af_data, pf_data
 
     def _extra_axis(self, axis, x, y):
 
@@ -106,6 +116,59 @@ class BinToDepth:
         #extra_axis.ylabel('Distance (m)', labelpad=775)
 
         return extra_axis
+
+    def _cntplots(self, afs, name) -> None:
+
+        ncols = len(afs)
+
+        inset_locs = []
+
+        if ncols == 2:
+            inset_locs.append([0.37, 0.6, .1, .1])
+            inset_locs.append([0.78, 0.6, .1, .1])
+
+        elif ncols == 4:
+
+            inset_locs.append([0.15, 0.6, .1, .1])
+            inset_locs.append([0.40, 0.6, .1, .1])
+            inset_locs.append([0.65, 0.6, .1, .1])
+            inset_locs.append([0.80, 0.6, .1, .1])
+
+        fig, axes = plt.subplots(nrows=1, ncols=ncols, figsize=(ncols*3,3), frameon=True)
+
+        min_xlims = []
+        max_xlims = []
+
+        for af in afs:
+            avg = af[0]
+            var = af[1]
+            std = af[2]
+            med = af[3]
+            mfe = af[4]
+
+            min_xlims.append(mfe-4)
+            max_xlims.append(mfe+4)
+
+        min_xlim = np.min(np.array(min_xlims))
+        max_xlim = np.max(np.array(max_xlims))
+
+        for col, af in enumerate(afs):
+
+            x = np.arange(af[-1].shape[0])
+            axes[col].bar(x, af[-1])
+            mfe = af[-2]
+            axes[col].set_xlim(min_xlim, max_xlim)
+            #axes[col].set_xlim(mfe-3, mfe+3)
+            axes[col].xaxis.set_major_locator(MaxNLocator(integer=True))
+            axes[col].tick_params(axis='both', which='major', labelsize=7)
+            axes[col].set_xlabel('bin')
+            axes[col].set_ylabel('count')
+            #inset = fig.add_axes(inset_locs[col], facecolor=None)
+            #inset.bar(x, af[-1])
+            #inset.tick_params(axis='both', which='major', labelsize=3)
+
+        fig.subplots_adjust(wspace=0.4)
+        fig.savefig(f'{self.mode}_cnt_{name}.png', dpi=300, bbox_inches='tight', transparent=True)
 
     def subplots(self) -> None:
 
@@ -147,20 +210,42 @@ class BinToDepth:
         #tg_35m_r20 = loadder._read_area(tg_35m_r20_ul, tg_35m_r20_lr)
         #tg_35m_r95 = loadder._read_area(tg_35m_r95_ul, tg_35m_r95_lr)
         
-        tg_10m_r03_mins, tg_10m_r03_maxs, tg_10m_r03_avgs, tg_10m_r03_mfes = loadder._get_data(tg_10m_r03_ul, tg_10m_r03_lr)
-        tg_10m_r20_mins, tg_10m_r20_maxs, tg_10m_r20_avgs, tg_10m_r20_mfes = loadder._get_data(tg_10m_r20_ul, tg_10m_r20_lr)
+        tg_10m_r03_af, tg_10m_r03_pf = loadder._get_data(tg_10m_r03_ul, tg_10m_r03_lr)
+        tg_10m_r20_af, tg_10m_r20_pf = loadder._get_data(tg_10m_r20_ul, tg_10m_r20_lr)
 
-        tg_20m_r03_mins, tg_20m_r03_maxs, tg_20m_r03_avgs, tg_20m_r03_mfes = loadder._get_data(tg_20m_r03_ul, tg_20m_r03_lr)
-        tg_20m_r20_mins, tg_20m_r20_maxs, tg_20m_r20_avgs, tg_20m_r20_mfes = loadder._get_data(tg_20m_r20_ul, tg_20m_r20_lr)
-        tg_20m_r65_mins, tg_20m_r65_maxs, tg_20m_r65_avgs, tg_20m_r65_mfes = loadder._get_data(tg_20m_r65_ul, tg_20m_r65_lr)
-        tg_20m_r95_mins, tg_20m_r95_maxs, tg_20m_r95_avgs, tg_20m_r95_mfes = loadder._get_data(tg_20m_r95_ul, tg_20m_r95_lr)
+        tg_20m_r03_af, tg_20m_r03_pf = loadder._get_data(tg_20m_r03_ul, tg_20m_r03_lr)
+        tg_20m_r20_af, tg_20m_r20_pf = loadder._get_data(tg_20m_r20_ul, tg_20m_r20_lr)
+        tg_20m_r65_af, tg_20m_r65_pf = loadder._get_data(tg_20m_r65_ul, tg_20m_r65_lr)
+        tg_20m_r95_af, tg_20m_r95_pf = loadder._get_data(tg_20m_r95_ul, tg_20m_r95_lr)
 
-        tg_35m_r03_mins, tg_35m_r03_maxs, tg_35m_r03_avgs, tg_35m_r03_mfes = loadder._get_data(tg_35m_r03_ul, tg_35m_r03_lr)
-        tg_35m_r20_mins, tg_35m_r20_maxs, tg_35m_r20_avgs, tg_35m_r20_mfes = loadder._get_data(tg_35m_r20_ul, tg_35m_r20_lr)
-        tg_35m_r65_mins, tg_35m_r65_maxs, tg_35m_r65_avgs, tg_35m_r65_mfes = loadder._get_data(tg_35m_r65_ul, tg_35m_r65_lr)
-        tg_35m_r95_mins, tg_35m_r95_maxs, tg_35m_r95_avgs, tg_35m_r95_mfes = loadder._get_data(tg_35m_r95_ul, tg_35m_r95_lr)
+        tg_35m_r03_af, tg_35m_r03_pf = loadder._get_data(tg_35m_r03_ul, tg_35m_r03_lr)
+        tg_35m_r20_af, tg_35m_r20_pf = loadder._get_data(tg_35m_r20_ul, tg_35m_r20_lr)
+        tg_35m_r65_af, tg_35m_r65_pf = loadder._get_data(tg_35m_r65_ul, tg_35m_r65_lr)
+        tg_35m_r95_af, tg_35m_r95_pf = loadder._get_data(tg_35m_r95_ul, tg_35m_r95_lr)
+
+        afs_10m = [tg_10m_r03_af, tg_10m_r20_af]
+        afs_20m = [tg_20m_r03_af, tg_20m_r20_af, tg_20m_r65_af, tg_20m_r95_af]
+        afs_35m = [tg_35m_r03_af, tg_35m_r20_af, tg_35m_r65_af, tg_35m_r95_af]
+
+        self._cntplots(afs_10m, '10m')
+        self._cntplots(afs_20m, '20m')
+        self._cntplots(afs_35m, '35m')
+
+        tg_10m_r03_mins, tg_10m_r03_maxs, tg_10m_r03_avgs, tg_10m_r03_mfes = tg_10m_r03_pf
+        tg_10m_r20_mins, tg_10m_r20_maxs, tg_10m_r20_avgs, tg_10m_r20_mfes = tg_10m_r20_pf
+
+        tg_20m_r03_mins, tg_20m_r03_maxs, tg_20m_r03_avgs, tg_20m_r03_mfes = tg_20m_r03_pf
+        tg_20m_r20_mins, tg_20m_r20_maxs, tg_20m_r20_avgs, tg_20m_r20_mfes = tg_20m_r20_pf
+        tg_20m_r65_mins, tg_20m_r65_maxs, tg_20m_r65_avgs, tg_20m_r65_mfes = tg_20m_r65_pf
+        tg_20m_r95_mins, tg_20m_r95_maxs, tg_20m_r95_avgs, tg_20m_r95_mfes = tg_20m_r95_pf
+
+        tg_35m_r03_mins, tg_35m_r03_maxs, tg_35m_r03_avgs, tg_35m_r03_mfes = tg_35m_r03_pf
+        tg_35m_r20_mins, tg_35m_r20_maxs, tg_35m_r20_avgs, tg_35m_r20_mfes = tg_35m_r20_pf
+        tg_35m_r65_mins, tg_35m_r65_maxs, tg_35m_r65_avgs, tg_35m_r65_mfes = tg_35m_r65_pf
+        tg_35m_r95_mins, tg_35m_r95_maxs, tg_35m_r95_avgs, tg_35m_r95_mfes = tg_35m_r95_pf
 
         nframes = np.arange(len(tg_10m_r03_maxs))
+
         fig10, axes10 = plt.subplots(nrows=1, ncols=2, figsize=(12,4), frameon=True)
         fig20, axes20 = plt.subplots(nrows=1, ncols=4, figsize=(24,4), frameon=True)
         fig35, axes35 = plt.subplots(nrows=1, ncols=4, figsize=(24,4), frameon=True)
@@ -355,12 +440,12 @@ class BinToDepth:
 
 if __name__ == '__main__':
 
-    loc = 'D:/sony_poc_range96_paju_image_10s/'
-    mode = 'range96'
-    loc = 'D:/sony_poc_range192_paju_image_10s/'
-    mode = 'range192'
-    loc = 'D:/sony_poc_range192_paju_image_10s/'
-    mode = 'range192'
+    #loc = 'D:/sony_poc_range96_paju_image_10s/'
+    #mode = 'range96'
+    #loc = 'D:/sony_poc_range192_paju_image_10s/'
+    #mode = 'range192'
+    loc = 'D:/sony_poc_histogram_paju_image_10s/'
+    mode = 'histogram'
 
     loadder = BinToDepth(loc, mode)
     loadder.subplots()
