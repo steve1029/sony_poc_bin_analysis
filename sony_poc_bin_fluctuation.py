@@ -1,7 +1,7 @@
 import cv2, imageio
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter, MaxNLocator
+from matplotlib.ticker import FuncFormatter, MaxNLocator, FormatStrFormatter, MultipleLocator
 from scipy.constants import c
 import numpy as np
 import open3d as o3d
@@ -117,58 +117,91 @@ class BinToDepth:
 
         return extra_axis
 
-    def _cntplots(self, afs, name) -> None:
+    def _cntplots(self, afs, name, normalize=False) -> None:
 
         ncols = len(afs)
 
-        inset_locs = []
-
-        if ncols == 2:
-            inset_locs.append([0.37, 0.6, .1, .1])
-            inset_locs.append([0.78, 0.6, .1, .1])
-
-        elif ncols == 4:
-
-            inset_locs.append([0.15, 0.6, .1, .1])
-            inset_locs.append([0.40, 0.6, .1, .1])
-            inset_locs.append([0.65, 0.6, .1, .1])
-            inset_locs.append([0.80, 0.6, .1, .1])
-
-        fig, axes = plt.subplots(nrows=1, ncols=ncols, figsize=(ncols*3,3), frameon=True)
+        fig, axes = plt.subplots(nrows=1, ncols=ncols, figsize=(ncols*3,3), frameon=True, sharey=False)
 
         min_xlims = []
         max_xlims = []
 
+        min_ylims = []
+        max_ylims = []
+
+        reflec = ['3%', '20%', '65%', '95%']
+        lb = lambda x: x-3
+        ub = lambda x: x+3
+
         for af in afs:
+
             avg = af[0]
             var = af[1]
             std = af[2]
             med = af[3]
             mfe = af[4]
+            cnt = af[5]
 
-            min_xlims.append(mfe-4)
-            max_xlims.append(mfe+4)
+            min_xlims.append(lb(mfe))
+            max_xlims.append(ub(mfe))
+
+            min_ylims.append(np.min(cnt))
+            max_ylims.append(np.max(cnt))
 
         min_xlim = np.min(np.array(min_xlims))
         max_xlim = np.max(np.array(max_xlims))
 
-        for col, af in enumerate(afs):
+        min_ylim = np.min(np.array(min_ylims))
+        max_ylim = np.max(np.array(max_ylims))
 
+        #axes[0].set_ylim(min_ylim, max_ylim)
+
+        for col, af in enumerate(afs):
+            mfe = af[4]
             x = np.arange(af[-1].shape[0])
-            axes[col].bar(x, af[-1])
-            mfe = af[-2]
-            axes[col].set_xlim(min_xlim, max_xlim)
+            weights = af[-1][lb(mfe):ub(mfe)]
+            wavg = np.average(x[lb(mfe):ub(mfe)], weights=weights)
+            wdis = wavg * self.btd
+            #wavg = mfe
+            wvar = np.average((x[lb(mfe):ub(mfe)]-wavg)**2, weights=weights)
+            wstd = np.sqrt(wvar)
+            errd = wstd * self.btd
+
+            info = f'{self.mode} {name} {reflec[col]:>3s} {wavg:>6.2f} {wvar:.2f} {wstd:.2f} {wdis:.2f} {errd:.2f}'
+            print(info)
+
+            if normalize == False: 
+                axes[0].set_ylabel('count', fontsize=9)
+                axes[col].bar(x, af[-1], zorder=2)
+            else:
+                axes[0].set_ylabel('count ratio', fontsize=9)
+                axes[col].bar(x, af[-1]/np.max(af[-1]), zorder=2)
+
+            #mfe = af[-2]
+            axes[col].grid(axis='y', lw=0.7, ls='--', zorder=1)
             #axes[col].set_xlim(mfe-3, mfe+3)
-            axes[col].xaxis.set_major_locator(MaxNLocator(integer=True))
+            #axes[col].xaxis.set_major_locator(MaxNLocator(integer=True))
+            #axes[col].xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+            #axes[col].xaxis.set_major_locator(MultipleLocator(0.15))
+            #xticks = axes[col].get_xticks()
+            #axes[col].set_xticks(x)
+            #xticklabels = ['%5.2f' %F for F in x*self.btd]
+            #axes[col].set_xticklabels(xticklabels)
             axes[col].tick_params(axis='both', which='major', labelsize=7)
-            axes[col].set_xlabel('bin')
-            axes[col].set_ylabel('count')
+            axes[col].set_xlabel('bin', fontsize=9)
+            #axes[col].set_xlabel('Distance (m)', fontsize=9)
+            axes[col].set_title(f'{name}, {reflec[col]} Ref', fontsize=10)
+            axes[col].set_xlim(min_xlim, max_xlim)
+            #axes[col].bar_label(bar, labels=[f'{(bin*self.btd):.2f} m' for bin in x], label_type='edge', fontsize=5)
             #inset = fig.add_axes(inset_locs[col], facecolor=None)
             #inset.bar(x, af[-1])
             #inset.tick_params(axis='both', which='major', labelsize=3)
 
-        fig.subplots_adjust(wspace=0.4)
-        fig.savefig(f'{self.mode}_cnt_{name}.png', dpi=300, bbox_inches='tight', transparent=True)
+        #fig.subplots_adjust(wspace=0.4)
+        if normalize == False:
+            fig.savefig(f'{self.mode}_cnt_{name}.png', dpi=300, bbox_inches='tight', transparent=True)
+        else:
+            fig.savefig(f'{self.mode}_cnt_{name}_normalized.png', dpi=300, bbox_inches='tight', transparent=True)
 
     def subplots(self) -> None:
 
@@ -227,9 +260,13 @@ class BinToDepth:
         afs_20m = [tg_20m_r03_af, tg_20m_r20_af, tg_20m_r65_af, tg_20m_r95_af]
         afs_35m = [tg_35m_r03_af, tg_35m_r20_af, tg_35m_r65_af, tg_35m_r95_af]
 
-        self._cntplots(afs_10m, '10m')
-        self._cntplots(afs_20m, '20m')
-        self._cntplots(afs_35m, '35m')
+        #self._cntplots(afs_10m, '10m')
+        #self._cntplots(afs_20m, '20m')
+        #self._cntplots(afs_35m, '35m')
+
+        self._cntplots(afs_10m, '10m', normalize=True)
+        self._cntplots(afs_20m, '20m', normalize=True)
+        self._cntplots(afs_35m, '35m', normalize=True)
 
         tg_10m_r03_mins, tg_10m_r03_maxs, tg_10m_r03_avgs, tg_10m_r03_mfes = tg_10m_r03_pf
         tg_10m_r20_mins, tg_10m_r20_maxs, tg_10m_r20_avgs, tg_10m_r20_mfes = tg_10m_r20_pf
