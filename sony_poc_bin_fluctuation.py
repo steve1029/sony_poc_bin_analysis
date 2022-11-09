@@ -156,19 +156,24 @@ class BinToDepth:
 
         #axes[0].set_ylim(min_ylim, max_ylim)
 
+        werrds = {} 
+
         for col, af in enumerate(afs):
+
             mfe = af[4]
+            mfed = mfe * self.btd
             x = np.arange(af[-1].shape[0])
             weights = af[-1][lb(mfe):ub(mfe)]
             wavg = np.average(x[lb(mfe):ub(mfe)], weights=weights)
             wdis = wavg * self.btd
             #wavg = mfe
-            wvar = np.average((x[lb(mfe):ub(mfe)]-wavg)**2, weights=weights)
-            wstd = np.sqrt(wvar)
-            errd = wstd * self.btd
+            wvar = np.average((x[lb(mfe):ub(mfe)]-wavg)**2, weights=weights) # weighted variance.
+            wstd = np.sqrt(wvar) # weighted standard deviation.
+            errd = wstd * self.btd # wstd to length.
 
-            info = f'{self.mode} {name} {reflec[col]:>3s} {wavg:>6.2f} {wvar:.2f} {wstd:.2f} {wdis:.2f} {errd:.2f}'
+            info = f'{self.mode} {name} {reflec[col]:>3s} {mfed:>5.2f} {wavg:>6.2f} {wvar:.2f} {wstd:.2f} {wdis:.2f} {errd:.2f}'
             print(info)
+            werrds[f'{reflec[col]}'] = errd
 
             if normalize == False: 
                 axes[0].set_ylabel('count', fontsize=9)
@@ -202,6 +207,21 @@ class BinToDepth:
             fig.savefig(f'{self.mode}_cnt_{name}.png', dpi=300, bbox_inches='tight', transparent=True)
         else:
             fig.savefig(f'{self.mode}_cnt_{name}_normalized.png', dpi=300, bbox_inches='tight', transparent=True)
+
+        return werrds
+
+    def _werrdplots(self, errdics, labels) -> None:
+
+        fig, axis = plt.subplots(ncols=1, nrows=1, figsize=(6,4), frameon=True)
+
+        for i, errdic in enumerate(errdics):
+            axis.plot(range(len(errdic)), list(errdic.values()), label=labels[i])
+            axis.set_xticks(range(len(errdic)), list(errdic.keys()))
+
+        axis.legend(loc='best')
+        axis.set_xlabel('Reflectivity')
+        axis.set_ylabel('Standard deviation (m)')
+        fig.savefig('./werrdplots.png', dpi=300, bbox_inches='tight', transparent=True)
 
     def subplots(self) -> None:
 
@@ -264,9 +284,14 @@ class BinToDepth:
         #self._cntplots(afs_20m, '20m')
         #self._cntplots(afs_35m, '35m')
 
-        self._cntplots(afs_10m, '10m', normalize=True)
-        self._cntplots(afs_20m, '20m', normalize=True)
-        self._cntplots(afs_35m, '35m', normalize=True)
+        werrds_10m = self._cntplots(afs_10m, '10m', normalize=True)
+        werrds_20m = self._cntplots(afs_20m, '20m', normalize=True)
+        werrds_35m = self._cntplots(afs_35m, '35m', normalize=True)
+
+        werrdics = [werrds_10m, werrds_20m, werrds_35m]
+        labels = ['10 m', '20 m', '35 m']
+
+        self._werrdplots(werrdics, labels)
 
         tg_10m_r03_mins, tg_10m_r03_maxs, tg_10m_r03_avgs, tg_10m_r03_mfes = tg_10m_r03_pf
         tg_10m_r20_mins, tg_10m_r20_maxs, tg_10m_r20_avgs, tg_10m_r20_mfes = tg_10m_r20_pf
